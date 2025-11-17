@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <title>4桁パスコードで日付をあてよう</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      /* 全体のリセットっぽい軽い調整 */
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        background-color: #e2e8f0; /* slate-100 っぽい色 */
+        display: flex;
+        min-height: 100vh;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .card {
+        width: 100%;
+        max-width: 480px;
+        margin: 16px;
+        background-color: #ffffff;
+        border-radius: 16px;
+        box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12);
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+
+      .card-header {
+        text-align: center;
+      }
+
+      .card-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        margin: 0 0 4px;
+      }
+
+      .card-subtitle {
+        font-size: 0.85rem;
+        color: #64748b;
+        margin: 0;
+      }
+
+      /* 入力表示エリア */
+      .input-area {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .input-label {
+        font-size: 0.7rem;
+        color: #64748b;
+      }
+
+      .input-display {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", "Courier New", monospace;
+        font-size: 1.6rem;
+        letter-spacing: 0.4em;
+        border: 1px solid #cbd5e1;
+        border-radius: 12px;
+        padding: 8px 16px;
+        min-width: 8rem;
+        text-align: center;
+      }
+
+      .reset-button {
+        margin-top: 2px;
+        font-size: 0.7rem;
+        color: #64748b;
+        text-decoration: underline;
+        background: none;
+        border: none;
+        cursor: pointer;
+      }
+
+      .reset-button:hover {
+        color: #0f172a;
+      }
+
+      /* 数字ボタン */
+      .digits-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .digit-button {
+        padding: 12px 0;
+        border-radius: 12px;
+        border: 1px solid #cbd5e1;
+        font-size: 1.1rem;
+        font-weight: 600;
+        background-color: #ffffff;
+        cursor: pointer;
+        transition: background-color 0.12s ease, transform 0.06s ease,
+          box-shadow 0.12s ease, opacity 0.12s ease;
+      }
+
+      .digit-button:hover {
+        background-color: #f1f5f9;
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+      }
+
+      .digit-button:active {
+        transform: scale(0.97);
+      }
+
+      .digit-button:disabled {
+        opacity: 0.4;
+        cursor: default;
+        box-shadow: none;
+      }
+
+      /* メッセージエリア */
+      .message-area {
+        min-height: 3.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        font-size: 0.85rem;
+      }
+
+      .message-idle {
+        color: #64748b;
+      }
+
+      .message-error {
+        color: #ef4444;
+        font-weight: 500;
+      }
+
+      .message-success-title {
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+
+      .message-success-text {
+        color: #334155;
+        margin: 0;
+      }
+
+      .message-strong {
+        font-weight: 700;
+      }
+
+      /* フッター */
+      .card-footer {
+        font-size: 0.7rem;
+        color: #94a3b8;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <header class="card-header">
+        <h1 class="card-title">4桁パスコードで日付をあてよう</h1>
+        <p class="card-subtitle">
+          画面の数字だけを使って、4桁の数字を入力してみてください。
+        </p>
+      </header>
+
+      <!-- 入力表示 -->
+      <section class="input-area">
+        <div class="input-label">現在の入力</div>
+        <div id="input-display" class="input-display">____</div>
+        <button id="reset-button" type="button" class="reset-button">
+          クリア
+        </button>
+      </section>
+
+      <!-- 数字ボタン -->
+      <section id="digits-grid" class="digits-grid"></section>
+
+      <!-- メッセージ表示 -->
+      <section id="message-area" class="message-area">
+        <p id="message-text" class="message-idle">
+          4桁すべて入力すると結果が表示されます。
+        </p>
+      </section>
+
+      <footer class="card-footer">
+        例：オープンスクールや学校紹介ページに埋め込んで、ちょっとした謎解きコンテンツとして使えます。
+      </footer>
+    </div>
+
+    <script>
+      // パスコード本体
+      const CORRECT_CODE = "0213";
+
+      // 状態
+      let input = "";
+      let status = "idle"; // "idle" | "success" | "error"
+
+      // 要素取得
+      const inputDisplay = document.getElementById("input-display");
+      const resetButton = document.getElementById("reset-button");
+      const digitsGrid = document.getElementById("digits-grid");
+      const messageArea = document.getElementById("message-area");
+      const messageText = document.getElementById("message-text");
+
+      // UI更新
+      function updateUI() {
+        // 入力表示（足りない桁は _ で埋める）
+        const padded = (input + "____").slice(0, 4);
+        inputDisplay.textContent = padded;
+
+        // ボタンの無効化（4桁入力されたら押せないように）
+        const buttons = digitsGrid.querySelectorAll("button");
+        buttons.forEach((btn) => {
+          btn.disabled = input.length >= 4;
+        });
+
+        // メッセージの更新
+        messageText.className = ""; // class を一旦リセット
+
+        if (status === "idle") {
+          messageText.classList.add("message-idle");
+          messageText.innerHTML = "4桁すべて入力すると結果が表示されます。";
+        } else if (status === "error") {
+          messageText.classList.add("message-error");
+          messageText.innerHTML =
+            "残念！その日付ではありません。もう一度試してみましょう。";
+        } else if (status === "success") {
+          messageText.innerHTML =
+            '<div>' +
+            '<p class="message-success-title">正解！パスコードは 0213 でした。</p>' +
+            '<p class="message-success-text">' +
+            "青翔開智中学校・高等学校の " +
+            '<span class="message-strong">青開学会</span> は、' +
+            '<span class="message-strong">2月13日</span> に開催されます。' +
+            "</p>" +
+            "</div>";
+        }
+      }
+
+      // 数字ボタンが押されたとき
+      function handleDigitClick(digit) {
+        if (input.length >= 4) return;
+
+        const next = input + digit;
+        input = next;
+
+        if (next.length === 4) {
+          if (next === CORRECT_CODE) {
+            status = "success";
+          } else {
+            status = "error";
+          }
+        } else {
+          status = "idle";
+        }
+
+        updateUI();
+      }
+
+      // クリアボタン
+      resetButton.addEventListener("click", () => {
+        input = "";
+        status = "idle";
+        updateUI();
+      });
+
+      // 数字ボタンを生成
+      function setupDigitButtons() {
+        const digits = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+        digits.forEach((d) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.textContent = d;
+          btn.className = "digit-button";
+          btn.addEventListener("click", () => handleDigitClick(d));
+          digitsGrid.appendChild(btn);
+        });
+      }
+
+      // 初期化
+      setupDigitButtons();
+      updateUI();
+    </script>
+  </body>
+</html>
