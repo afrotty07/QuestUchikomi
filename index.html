@@ -154,7 +154,7 @@
             border-radius: 16px;
             padding: 12px 16px;
             position: relative;
-            margin-top: 8px;
+            /* margin-top: 8px; */
         }
 
         .message-idle {
@@ -185,7 +185,8 @@
             content: "";
             position: absolute;
             top: -8px;
-            left: 60px; /* キャラ画像側に寄せる */
+            left: 50%; /* 中央寄せに変更 */
+            transform: translateX(-50%); /* 中央寄せ補正 */
             border-width: 0 8px 8px 8px;
             border-style: solid;
             border-color: transparent transparent #e0f2fe transparent;
@@ -203,7 +204,7 @@
 <body>
     <div class="card">
         <header class="card-header">
-            <h1 class="card-title">4桁パスコードで日付をあてよう</h1>
+            <h1 class="card-title">4桁パスワードで日付をあてよう</h1>
             <p class="card-subtitle">
                 画面の数字だけを使って、4桁の数字を入力してみてください。
             </p>
@@ -218,6 +219,13 @@
             </div>
         </section>
 
+        <!-- メッセージ表示（ここに移動） -->
+        <section id="message-area" class="message-area">
+            <p id="message-text" class="message-idle">
+                4桁すべて入力すると結果が表示されます。
+            </p>
+        </section>
+
         <!-- 入力表示 -->
         <section class="input-area">
             <div class="input-label">現在の入力</div>
@@ -229,13 +237,6 @@
 
         <!-- 数字ボタン -->
         <section id="digits-grid" class="digits-grid"></section>
-
-        <!-- メッセージ表示 -->
-        <section id="message-area" class="message-area">
-            <p id="message-text" class="message-idle">
-                4桁すべて入力すると結果が表示されます。
-            </p>
-        </section>
 
         <footer class="card-footer">
           
@@ -283,14 +284,14 @@
             } else if (status === "success") {
                 messageText.innerHTML =
                     '<div>' +
-                    '<p class="message-success-title">正解！パスコードは 0213 でした。</p>' +
+                    '<p class="message-success-title">正解！パスワードは 0213 でした。</p>' +
                     '<p class="message-success-text">' +
                     "青翔開智中学校・高等学校の " +
                     '<span class="message-strong">青開学会</span> は、' +
                     '<span class="message-strong">2月13日</span> に開催されます。<span class="message-strong">ぜひ来てね！</span>' +
                     "</p>" +
-                    '<p class="message-success-text" style="margin-top:8px;">スタンプラリーの言葉は「<span class="message-strong">がっかい</span>」だよ！</p>' +
-                    '<p 次のクエストに向かおう！</p>'
+                    '<p class="message-success-text" style="margin-top:8px;">スタンプラリーのキーワードは「<span class="message-strong">グローバル</span>」だよ！</p>' +
+                    '<p>次のクエストに向かおう！</p>' +
                     "</div>";
             }
 
