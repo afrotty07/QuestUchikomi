@@ -5,6 +5,8 @@
     <meta charset="UTF-8" />
     <title>4桁パスコードで日付をあてよう</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- 紙吹雪エフェクト用のライブラリ -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         /* 全体のリセットっぽい軽い調整 */
         * {
@@ -21,6 +23,20 @@
             min-height: 100vh;
             align-items: center;
             justify-content: center;
+            transition: background 0.5s ease;
+        }
+
+        /* 正解時の豪華な背景アニメーション */
+        @keyframes rainbow-bg {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        body.success-mode {
+            background: linear-gradient(-45deg, #ff9a9e, #fad0c4, #fad0c4, #a18cd1, #fbc2eb, #8fd3f4);
+            background-size: 400% 400%;
+            animation: rainbow-bg 10s ease infinite;
         }
 
         .card {
@@ -34,6 +50,8 @@
             display: flex;
             flex-direction: column;
             gap: 24px;
+            position: relative;
+            z-index: 10;
         }
 
         .card-header {
@@ -61,12 +79,26 @@
         .image-circle {
             width: 180px;
             margin: 0 auto;
+            transition: transform 0.3s;
         }
 
         .image-circle img {
             width: 100%;
             height: auto;
             display: block;
+        }
+
+        /* ジャジャーン！という感じのアニメーション */
+        @keyframes tada {
+            from { transform: scale3d(1, 1, 1); }
+            10%, 20% { transform: scale3d(0.9, 0.9, 0.9) rotate3d(0, 0, 1, -3deg); }
+            30%, 50%, 70%, 90% { transform: scale3d(1.1, 1.1, 1.1) rotate3d(0, 0, 1, 3deg); }
+            40%, 60%, 80% { transform: scale3d(1.1, 1.1, 1.1) rotate3d(0, 0, 1, -3deg); }
+            to { transform: scale3d(1, 1, 1); }
+        }
+
+        .animate-tada {
+            animation: tada 1s both;
         }
 
         /* 入力表示エリア */
@@ -92,6 +124,7 @@
             padding: 8px 16px;
             min-width: 8rem;
             text-align: center;
+            background-color: #fff;
         }
 
         .reset-button {
@@ -155,6 +188,16 @@
             padding: 12px 16px;
             position: relative;
             /* margin-top: 8px; */
+            transition: background-color 0.3s;
+        }
+        
+        /* 成功時のメッセージエリア強調 */
+        .message-area.success-style {
+            background-color: #d1fae5; /* 薄い緑/エメラルド系 */
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+        }
+        .message-area.success-style::before {
+             border-color: transparent transparent #d1fae5 transparent;
         }
 
         .message-idle {
@@ -169,6 +212,7 @@
         .message-success-title {
             font-weight: 600;
             margin-bottom: 4px;
+            color: #059669;
         }
 
         .message-success-text {
@@ -178,6 +222,22 @@
 
         .message-strong {
             font-weight: 700;
+            color: #0d9488;
+        }
+
+        /* 弾むようなアニメーション */
+        @keyframes bounceIn {
+            0%, 20%, 40%, 60%, 80%, 100% { animation-timing-function: cubic-bezier(0.215, 0.610, 0.355, 1.000); }
+            0% { opacity: 0; transform: scale3d(.3, .3, .3); }
+            20% { transform: scale3d(1.1, 1.1, 1.1); }
+            40% { transform: scale3d(.9, .9, .9); }
+            60% { opacity: 1; transform: scale3d(1.03, 1.03, 1.03); }
+            80% { transform: scale3d(.97, .97, .97); }
+            100% { opacity: 1; transform: scale3d(1, 1, 1); }
+        }
+
+        .animate-bounce-in {
+            animation: bounceIn 0.8s;
         }
 
         /* 吹き出しのしっぽ */
@@ -185,11 +245,12 @@
             content: "";
             position: absolute;
             top: -8px;
-            left: 50%; /* 中央寄せに変更 */
+            left: 50%; /* 中央寄せ */
             transform: translateX(-50%); /* 中央寄せ補正 */
             border-width: 0 8px 8px 8px;
             border-style: solid;
             border-color: transparent transparent #e0f2fe transparent;
+            transition: border-color 0.3s;
         }
 
         /* フッター */
@@ -212,14 +273,14 @@
 
         <!-- 円形画像表示エリア -->
         <section class="image-wrapper">
-            <div class="image-circle">
+            <div id="image-circle-container" class="image-circle">
                 <img id="status-image"
                     src="https://i.postimg.cc/fLXxG8jV/fu-kkurin01.png"
                     alt="問題前の画像">
             </div>
         </section>
 
-        <!-- メッセージ表示（ここに移動） -->
+        <!-- メッセージ表示 -->
         <section id="message-area" class="message-area">
             <p id="message-text" class="message-idle">
                 4桁すべて入力すると結果が表示されます。
@@ -252,12 +313,43 @@
         let status = "idle"; // "idle" | "success" | "error"
 
         // 要素取得
+        const body = document.body;
         const inputDisplay = document.getElementById("input-display");
         const resetButton = document.getElementById("reset-button");
         const digitsGrid = document.getElementById("digits-grid");
         const messageArea = document.getElementById("message-area");
         const messageText = document.getElementById("message-text");
         const statusImage = document.getElementById("status-image");
+        const imageContainer = document.getElementById("image-circle-container");
+
+        // 紙吹雪エフェクト
+        function triggerConfetti() {
+            const duration = 3000;
+            const animationEnd = Date.now() + duration;
+            const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 100 };
+
+            const randomInRange = (min, max) => Math.random() * (max - min) + min;
+
+            const interval = setInterval(function () {
+                const timeLeft = animationEnd - Date.now();
+
+                if (timeLeft <= 0) {
+                    return clearInterval(interval);
+                }
+
+                const particleCount = 50 * (timeLeft / duration);
+                
+                // 左右から紙吹雪を飛ばす
+                confetti(Object.assign({}, defaults, { 
+                    particleCount, 
+                    origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } 
+                }));
+                confetti(Object.assign({}, defaults, { 
+                    particleCount, 
+                    origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } 
+                }));
+            }, 250);
+        }
 
         // UI更新
         function updateUI() {
@@ -271,8 +363,11 @@
                 btn.disabled = input.length >= 4;
             });
 
-            // メッセージの更新
-            messageText.className = ""; // class を一旦リセット
+            // クラスのリセット
+            messageText.className = "";
+            messageArea.className = "message-area"; // ベースクラスに戻す
+            imageContainer.classList.remove("animate-tada");
+            body.classList.remove("success-mode");
 
             if (status === "idle") {
                 messageText.classList.add("message-idle");
@@ -282,9 +377,15 @@
                 messageText.innerHTML =
                     "残念！その日付ではありません。もう一度試してみましょう。";
             } else if (status === "success") {
+                // 成功時の演出クラス追加
+                body.classList.add("success-mode");
+                messageArea.classList.add("success-style");
+                messageArea.classList.add("animate-bounce-in");
+                imageContainer.classList.add("animate-tada");
+
                 messageText.innerHTML =
                     '<div>' +
-                    '<p class="message-success-title">正解！パスワードは 0213 でした。</p>' +
+                    '<p class="message-success-title">🎉 正解！パスワードは 0213 でした。</p>' +
                     '<p class="message-success-text">' +
                     "青翔開智中学校・高等学校の " +
                     '<span class="message-strong">青開学会</span> は、' +
@@ -299,7 +400,6 @@
             if (status === "success") {
                 statusImage.src = "https://i.postimg.cc/rFyrjVb9/fu-kkurin03.png";
             } else {
-                // idle, error のときは常に初期画像に戻す
                 statusImage.src = "https://i.postimg.cc/fLXxG8jV/fu-kkurin01.png";
             }
         }
@@ -314,6 +414,7 @@
             if (next.length === 4) {
                 if (next === CORRECT_CODE) {
                     status = "success";
+                    triggerConfetti(); // 正解したら紙吹雪発射！
                 } else {
                     status = "error";
                 }
