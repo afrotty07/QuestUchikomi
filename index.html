@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8" />
-    <title>4桁パスコードで日付をあてよう</title>
+    <title>パスワードゲーム</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <!-- 紙吹雪エフェクト用のライブラリ -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
@@ -52,6 +52,7 @@
             gap: 24px;
             position: relative;
             z-index: 10;
+            transition: min-height 0.3s ease;
         }
 
         .card-header {
@@ -68,6 +69,7 @@
             font-size: 0.85rem;
             color: #64748b;
             margin: 0;
+            min-height: 1.2em; /* 高さが変わらないように確保 */
         }
 
         /* 円形画像部分 */
@@ -210,9 +212,12 @@
         }
 
         .message-success-title {
+            font-size: 1.2rem;
             font-weight: 600;
             margin-bottom: 4px;
             color: #059669;
+            text-align: center;
+            width: 100%;
         }
 
         .message-success-text {
@@ -265,9 +270,10 @@
 <body>
     <div class="card">
         <header class="card-header">
-            <h1 class="card-title">4桁パスワードで日付をあてよう</h1>
-            <p class="card-subtitle">
-                画面の数字だけを使って、4桁の数字を入力してみてください。
+            <!-- タイトルとサブタイトルにIDを付与してJSから操作可能に -->
+            <h1 id="card-title" class="card-title">Loading...</h1>
+            <p id="card-subtitle" class="card-subtitle">
+                Loading...
             </p>
         </header>
 
@@ -276,21 +282,21 @@
             <div id="image-circle-container" class="image-circle">
                 <img id="status-image"
                     src="https://i.postimg.cc/fLXxG8jV/fu-kkurin01.png"
-                    alt="問題前の画像">
+                    alt="キャラクター画像">
             </div>
         </section>
 
         <!-- メッセージ表示 -->
         <section id="message-area" class="message-area">
             <p id="message-text" class="message-idle">
-                4桁すべて入力すると結果が表示されます。
+                ...
             </p>
         </section>
 
         <!-- 入力表示 -->
         <section class="input-area">
             <div class="input-label">現在の入力</div>
-            <div id="input-display" class="input-display">____</div>
+            <div id="input-display" class="input-display">_</div>
             <button id="reset-button" type="button" class="reset-button">
                 クリア
             </button>
@@ -305,15 +311,36 @@
     </div>
 
     <script>
-        // パスコード本体
-        const CORRECT_CODE = "0213";
+        // ゲームのステージ設定
+        const STAGES = {
+            1: {
+                code: "2",
+                length: 1,
+                title: "１桁のパスワードを当てよう！",
+                subtitle: "画面の数字を使って、1桁の正解を見つけてね。",
+                idleMessage: "数字を1つ選んで入力してみよう。",
+                successSimple: "おめでとう🎊" // ステージ1用のシンプルな成功メッセージ
+            },
+            2: {
+                code: "0213",
+                length: 4,
+                title: "4桁パスコードで日付をあてよう",
+                subtitle: "今度は、４桁は突破できるかな？！画面の数字だけを使って入力してみよう。",
+                idleMessage: "4桁すべて入力すると結果が表示されるよ！。",
+                // ステージ2はリッチなHTMLメッセージを使うためここには定義しない
+            }
+        };
 
-        // 状態
+        // 状態管理
+        let currentStage = 1; // 現在のステージ (1 or 2)
         let input = "";
         let status = "idle"; // "idle" | "success" | "error"
+        let isTransitioning = false; // ステージ移行中フラグ
 
         // 要素取得
         const body = document.body;
+        const cardTitle = document.getElementById("card-title");
+        const cardSubtitle = document.getElementById("card-subtitle");
         const inputDisplay = document.getElementById("input-display");
         const resetButton = document.getElementById("reset-button");
         const digitsGrid = document.getElementById("digits-grid");
@@ -324,7 +351,7 @@
 
         // 紙吹雪エフェクト
         function triggerConfetti() {
-            const duration = 3000;
+            const duration = 2000; // 少し短めに
             const animationEnd = Date.now() + duration;
             const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 100 };
 
@@ -339,7 +366,6 @@
 
                 const particleCount = 50 * (timeLeft / duration);
                 
-                // 左右から紙吹雪を飛ばす
                 confetti(Object.assign({}, defaults, { 
                     particleCount, 
                     origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } 
@@ -351,70 +377,117 @@
             }, 250);
         }
 
-        // UI更新
+        // UI更新（ステージ設定に基づいて表示を変更）
         function updateUI() {
-            // 入力表示（足りない桁は _ で埋める）
-            const padded = (input + "____").slice(0, 4);
+            const config = STAGES[currentStage];
+
+            // タイトルとサブタイトル更新
+            cardTitle.textContent = config.title;
+            cardSubtitle.textContent = config.subtitle;
+
+            // 入力表示（足りない桁は _ で埋める。ステージによって桁数が違う）
+            let placeholder = "";
+            for(let i=0; i < config.length; i++) placeholder += "_";
+            const padded = (input + placeholder).slice(0, config.length);
             inputDisplay.textContent = padded;
 
-            // ボタンの無効化（4桁入力されたら押せないように）
+            // ボタンの無効化判定
             const buttons = digitsGrid.querySelectorAll("button");
             buttons.forEach((btn) => {
-                btn.disabled = input.length >= 4;
+                // 移行中、または桁数が埋まったら無効化
+                btn.disabled = isTransitioning || input.length >= config.length;
             });
+            resetButton.disabled = isTransitioning;
+
 
             // クラスのリセット
             messageText.className = "";
-            messageArea.className = "message-area"; // ベースクラスに戻す
-            imageContainer.classList.remove("animate-tada");
-            body.classList.remove("success-mode");
+            messageArea.className = "message-area";
+            // ステージ1の成功時はアニメーションを維持、それ以外はリセット
+            if (!(currentStage === 1 && status === "success")) {
+                 imageContainer.classList.remove("animate-tada");
+                 body.classList.remove("success-mode");
+            }
 
+            // メッセージ表示の分岐
             if (status === "idle") {
                 messageText.classList.add("message-idle");
-                messageText.innerHTML = "4桁すべて入力すると結果が表示されます。";
+                messageText.textContent = config.idleMessage;
             } else if (status === "error") {
                 messageText.classList.add("message-error");
-                messageText.innerHTML =
-                    "残念！その日付ではありません。もう一度試してみましょう。";
+                messageText.textContent = "残念！違います。もう一度試してみましょう。";
             } else if (status === "success") {
-                // 成功時の演出クラス追加
+                // 成功時の共通演出
                 body.classList.add("success-mode");
                 messageArea.classList.add("success-style");
                 messageArea.classList.add("animate-bounce-in");
                 imageContainer.classList.add("animate-tada");
 
-                messageText.innerHTML =
-                    '<div>' +
-                    '<p class="message-success-title">🎉 正解！パスワードは 0213 でした。</p>' +
-                    '<p class="message-success-text">' +
-                    "青翔開智中学校・高等学校の " +
-                    '<span class="message-strong">青開学会</span> は、' +
-                    '<span class="message-strong">2月13日</span> に開催されます。<span class="message-strong">ぜひ来てね！</span>' +
-                    "</p>" +
-                    '<p class="message-success-text" style="margin-top:8px;">スタンプラリーのキーワードは「<span class="message-strong">グローバル</span>」だよ！</p>' +
-                    '<p>次のクエストに向かおう！</p>' +
-                    "</div>";
-            }
-
-            // 画像切り替え
-            if (status === "success") {
-                statusImage.src = "https://i.postimg.cc/rFyrjVb9/fu-kkurin03.png";
-            } else {
-                statusImage.src = "https://i.postimg.cc/fLXxG8jV/fu-kkurin01.png";
+                if (currentStage === 1) {
+                    // ステージ1の成功メッセージ
+                    messageText.innerHTML = `<p class="message-success-title" style="font-size:1.5rem;">${config.successSimple}</p>`;
+                } else {
+                    // ステージ2の成功メッセージ（リッチなHTML）
+                    messageText.innerHTML =
+                        '<div>' +
+                        '<p class="message-success-title">🎉 正解！パスワードは 0213 でした。</p>' +
+                        '<p class="message-success-text">' +
+                        "青翔開智中学校・高等学校の " +
+                        '<span class="message-strong">青開学会</span> は、' +
+                        '<span class="message-strong">2月13日</span> に開催されます。<span class="message-strong">ぜひ来てね！</span>' +
+                        "</p>" +
+                        '<p class="message-success-text" style="margin-top:8px;">スタンプラリーのキーワードは「<span class="message-strong">グローバル</span>」だよ！</p>' +
+                        '<p>次のクエストに向かおう！</p>' +
+                        "</div>";
+                     // 最終ステージクリア時のみ画像を変更
+                    statusImage.src = "https://i.postimg.cc/rFyrjVb9/fu-kkurin03.png";
+                }
             }
         }
 
+        // 次のステージへ移行処理
+        function transitionToNextStage() {
+            isTransitioning = true;
+            updateUI(); // ボタンを無効化するために一度更新
+
+            setTimeout(() => {
+                // ステージを進める
+                currentStage = 2;
+                // 状態をリセット
+                input = "";
+                status = "idle";
+                isTransitioning = false;
+                
+                // 演出用クラスや画像をリセット
+                body.classList.remove("success-mode");
+                messageArea.classList.remove("success-style");
+                messageArea.classList.remove("animate-bounce-in");
+                imageContainer.classList.remove("animate-tada");
+                statusImage.src = "https://i.postimg.cc/fLXxG8jV/fu-kkurin01.png";
+
+                updateUI(); // 新しいステージのUIを表示
+            }, 1500); // 1.5秒後に遷移（紙吹雪の余韻のため少し長めに）
+        }
+
+
         // 数字ボタンが押されたとき
         function handleDigitClick(digit) {
-            if (input.length >= 4) return;
+            if (isTransitioning) return;
+            const config = STAGES[currentStage];
+            if (input.length >= config.length) return;
 
             const next = input + digit;
             input = next;
 
-            if (next.length === 4) {
-                if (next === CORRECT_CODE) {
+            // 桁数が埋まったら判定
+            if (next.length === config.length) {
+                if (next === config.code) {
                     status = "success";
-                    triggerConfetti(); // 正解したら紙吹雪発射！
+                    triggerConfetti(); // 正解したら紙吹雪
+
+                    if (currentStage === 1) {
+                        transitionToNextStage(); // ステージ1なら次へ
+                    }
                 } else {
                     status = "error";
                 }
@@ -427,6 +500,7 @@
 
         // クリアボタン
         resetButton.addEventListener("click", () => {
+            if (isTransitioning) return;
             input = "";
             status = "idle";
             updateUI();
@@ -447,7 +521,7 @@
 
         // 初期化
         setupDigitButtons();
-        updateUI();
+        updateUI(); // 初期ステージ(1)のUIを表示
     </script>
 </body>
 
